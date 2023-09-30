@@ -50,6 +50,7 @@ Table::~Table()
   LOG_INFO("Table has been closed: %s", name());
 }
 
+// 建表，path包括存放源数据（表名，字段，字段类型，索引）。表的数据文件和索引都在base_dir目录中。最后两个参数描述有什么类型，有哪些字段。
 RC Table::create(int32_t table_id, 
                  const char *path, 
                  const char *name, 
@@ -114,6 +115,7 @@ RC Table::create(int32_t table_id,
     return rc;
   }
 
+  // init_record_handler是处理行数据的，增删改查
   rc = init_record_handler(base_dir);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to create table %s due to init record handler failed.", data_file.c_str());

@@ -27,6 +27,7 @@ See the Mulan PSL v2 for more details. */
 
 using namespace common;
 
+// 通常网络消息到parser后会到handle_event
 RC ParseStage::handle_request(SQLStageEvent *sql_event)
 {
   RC rc = RC::SUCCESS;
@@ -36,6 +37,7 @@ RC ParseStage::handle_request(SQLStageEvent *sql_event)
 
   ParsedSqlResult parsed_sql_result;
 
+  // 词法解析，语法解析
   parse(sql.c_str(), &parsed_sql_result);
   if (parsed_sql_result.sql_nodes().empty()) {
     sql_result->set_return_code(RC::SUCCESS);
