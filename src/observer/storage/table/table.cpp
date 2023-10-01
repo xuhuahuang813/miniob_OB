@@ -128,6 +128,50 @@ RC Table::create(int32_t table_id,
   return rc;
 }
 
+// hxh drop table
+RC Table::drop(const char *path, const char *table_name)
+{
+  RC rc = RC::SUCCESS;
+
+  // 根据Table::create的步骤反向释放资源
+  // 销毁索引
+  const int index_num = table_meta_.index_num();
+  for (int i = 0; i < index_num; i++) {
+    ((BplusTreeIndex *)indexes_[i])->close();
+
+    const IndexMeta *index_meta = table_meta_.index(i);
+    std::string      index_file = table_index_file(path, name(), index_meta->name());
+    if (::remove(index_file.c_str()) != 0) {
+      LOG_ERROR("Failed to remove index file=%s, errno=%d", index_file.c_str(), errno);
+      return RC::IOERR_CLOSE;
+    }
+  }
+  indexes_.clear();
+
+  // 销毁record_handler
+  record_handler_->close();
+  delete record_handler_;
+  record_handler_ = nullptr;
+
+  // 销毁buffer pool和data file
+  std::string        data_file = table_data_file(path, table_name);
+  BufferPoolManager &bpm       = BufferPoolManager::instance();
+  rc                           = bpm.close_file(data_file.c_str());
+  if (::remove(data_file.c_str()) != 0) {
+    LOG_ERROR("Failed to remove data file=%s, errno=%d", data_file.c_str(), errno);
+    return RC::IOERR_CLOSE;
+  }
+
+  // 移除meta file
+  std::string meta_file = table_meta_file(path, table_name);
+  if (::remove(meta_file.c_str()) != 0) {
+    LOG_ERROR("Failed to remove table meta file=%s, errno=%d", meta_file.c_str(), errno);
+    return RC::IOERR_CLOSE;
+  }
+
+  return rc;
+}
+
 RC Table::open(const char *meta_file, const char *base_dir)
 {
   // 加载元数据文件
@@ -389,12 +433,12 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to insert record into index while creating index. table=%s, index=%s, rc=%s",
                name(), index_name, strrc(rc));
-      return rc;         
+      return rc;
     }
   }
   scanner.close_scan();
   LOG_INFO("inserted all records into new index. table=%s, index=%s", name(), index_name);
-  
+
   indexes_.push_back(index);
 
   /// 接下来将这个索引放到表的元数据中
@@ -442,9 +486,9 @@ RC Table::delete_record(const Record &record)
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     rc = index->delete_entry(record.data(), &record.rid());
-    ASSERT(RC::SUCCESS == rc, 
-           "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
-           name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
+    ASSERT(RC::SUCCESS == rc,
+        "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
+        name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
   }
   rc = record_handler_->delete_record(&record.rid());
   return rc;
