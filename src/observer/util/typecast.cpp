@@ -18,7 +18,7 @@ RC string_to_date(const char* str, int32_t &date)
   bool isLegal = check_date(y, m, d);
   if (!isLegal) {
     LOG_WARN("date check failure");
-    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    return RC::GENERIC_ERROR;
   }
   date = y * 10000 + m * 100 + d;
   return RC::SUCCESS;

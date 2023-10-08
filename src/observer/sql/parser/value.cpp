@@ -270,6 +270,9 @@ int Value::get_int() const
     case FLOATS: {
       return (int)(num_value_.float_value_);
     }
+    case DATES: {
+      return (int)(num_value_.date_value_);
+    }
     case BOOLEANS: {
       return (int)(num_value_.bool_value_);
     }
@@ -308,7 +311,7 @@ float Value::get_float() const
       return num_value_.float_value_;
     } break;
     case DATES: {
-      return num_value_.date_value_;
+      return float(num_value_.date_value_);
     }break;
     case BOOLEANS: {
       return float(num_value_.bool_value_);
