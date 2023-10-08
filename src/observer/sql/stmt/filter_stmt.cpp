@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/filter_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include "util/typecast.h"
 
 FilterStmt::~FilterStmt()
 {
@@ -90,7 +91,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
 
   filter_unit = new FilterUnit;
 
-  if (condition.left_is_attr) {
+  if (condition.left_is_attr) { //属性
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
     rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
@@ -101,10 +102,25 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
-  } else {
+  } else { //属性值
     FilterObj filter_obj;
     filter_obj.init_value(condition.left_value);
     filter_unit->set_left(filter_obj);
+    // 检查DATES
+    AttrType attrType = condition.left_value.attr_type();
+    if(attrType == DATES)
+    {
+      int date_int = condition.left_value.get_date();
+      int y = date_int / 10000;
+      int m = (date_int % 10000) / 100;
+      int d = (date_int % 100);
+
+      if(!check_date(y, m, d))
+      {
+        LOG_WARN("left_value DATES check failure");
+        return RC::GENERIC_ERROR;
+      }
+    }
   }
 
   if (condition.right_is_attr) {
@@ -122,6 +138,21 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_value(condition.right_value);
     filter_unit->set_right(filter_obj);
+    // 检查DATES
+    AttrType attrType = condition.right_value.attr_type();
+    if(attrType == DATES)
+    {
+      int date_int = condition.right_value.get_date();
+      int y = date_int / 10000;
+      int m = (date_int % 10000) / 100;
+      int d = (date_int % 100);
+
+      if(!check_date(y, m, d))
+      {
+        LOG_WARN("right_value DATES check failure");
+        return RC::GENERIC_ERROR;
+      }
+    }
   }
 
   filter_unit->set_comp(comp);

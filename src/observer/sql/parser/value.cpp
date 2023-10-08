@@ -18,12 +18,13 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
+#include "util/typecast.h"
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans"};
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates", "booleans"};
 
 const char *attr_type_to_string(AttrType type)
 {
-  if (type >= UNDEFINED && type <= FLOATS) {
+  if (type >= UNDEFINED && type <= DATES) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
@@ -46,6 +47,11 @@ Value::Value(int val)
 Value::Value(float val)
 {
   set_float(val);
+}
+
+Value::Value(int is_date, const char* val)
+{
+  set_date_from_string(val);
 }
 
 Value::Value(bool val)
@@ -72,6 +78,10 @@ void Value::set_data(char *data, int length)
       num_value_.float_value_ = *(float *)data;
       length_ = length;
     } break;
+    case DATES: {
+      num_value_.date_value_ = *(int *)data;
+      length_ = length;
+    }
     case BOOLEANS: {
       num_value_.bool_value_ = *(int *)data != 0;
       length_ = length;
@@ -94,6 +104,23 @@ void Value::set_float(float val)
   num_value_.float_value_ = val;
   length_ = sizeof(val);
 }
+
+void Value::set_date(int val)
+{
+  attr_type_ = DATES;
+  num_value_.date_value_ = val;
+  length_ = sizeof(val);
+}
+
+void Value::set_date_from_string(const char* s)
+{
+  attr_type_ = DATES;
+  string_to_date(s, num_value_.date_value_);
+  // std::stringstream os;
+  // os << "insert date "<< num_value_.date_value_;
+  length_ = sizeof(num_value_.date_value_);
+}
+
 void Value::set_boolean(bool val)
 {
   attr_type_ = BOOLEANS;
@@ -120,6 +147,9 @@ void Value::set_value(const Value &value)
     } break;
     case FLOATS: {
       set_float(value.get_float());
+    } break;
+    case DATES: {
+      set_date(value.get_date());
     } break;
     case CHARS: {
       set_string(value.get_string().c_str());
@@ -155,6 +185,24 @@ std::string Value::to_string() const
     case FLOATS: {
       os << common::double_to_str(num_value_.float_value_);
     } break;
+    case DATES: {
+      int date_int = num_value_.date_value_;
+      int y = date_int / 10000;
+      int m = (date_int % 10000) / 100;
+      int d = (date_int % 100);
+      // 输出需要时yyyy-mm-dd的形式
+      os << y << "-";
+      if (m < 10) {
+        os << "0" << m << "-";
+      } else {
+        os << m << "-";
+      }
+      if (d < 10) {
+        os << "0" << d;
+      } else {
+        os << d;
+      }
+    } break;
     case BOOLEANS: {
       os << num_value_.bool_value_;
     } break;
@@ -177,6 +225,9 @@ int Value::compare(const Value &other) const
       } break;
       case FLOATS: {
         return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other.num_value_.float_value_);
+      } break;
+      case DATES: {
+        return common::compare_date((void *)&this->num_value_.date_value_, (void *)&other.num_value_.date_value_);
       } break;
       case CHARS: {
         return common::compare_string((void *)this->str_value_.c_str(),
@@ -230,6 +281,15 @@ int Value::get_int() const
   return 0;
 }
 
+int Value::get_date() const
+{
+  if (attr_type_ != DATES)
+  {
+    LOG_WARN("get date attr_type is not DATES");
+  }
+  return num_value_.date_value_;
+}
+
 float Value::get_float() const
 {
   switch (attr_type_) {
@@ -247,6 +307,9 @@ float Value::get_float() const
     case FLOATS: {
       return num_value_.float_value_;
     } break;
+    case DATES: {
+      return num_value_.date_value_;
+    }break;
     case BOOLEANS: {
       return float(num_value_.bool_value_);
     } break;
@@ -291,6 +354,9 @@ bool Value::get_boolean() const
       float val = num_value_.float_value_;
       return val >= EPSILON || val <= -EPSILON;
     } break;
+    case DATES: {
+      return num_value_.date_value_ != 0;
+    }break;
     case BOOLEANS: {
       return num_value_.bool_value_;
     } break;
