@@ -81,7 +81,7 @@ void Value::set_data(char *data, int length)
     case DATES: {
       num_value_.date_value_ = *(int *)data;
       length_ = length;
-    }
+    } break;
     case BOOLEANS: {
       num_value_.bool_value_ = *(int *)data != 0;
       length_ = length;
