@@ -106,6 +106,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   Value *                           value;
   enum CompOp                       comp;
   RelAttrSqlNode *                  rel_attr;
+  UpdateTuple *                     update_tuple;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
   Expression *                      expression;
@@ -114,6 +115,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<UpdateTuple> *        update_tuple_list;       
   char *                            string;
   int                               number;
   float                             floats;
@@ -133,6 +135,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <number>              number
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
+%type <update_tuple>        update_tuple
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
 %type <value_list>          value_list
@@ -141,6 +144,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
 %type <rel_attr_list>       attr_list
+%type <update_tuple_list>   update_tuple_list
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -408,18 +412,46 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     }
     ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET update_tuple update_tuple_list where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      if ($5 != nullptr){
+        $$->update.update_tuples.swap(*$5);
+        delete $5;
+      }
+      $$->update.update_tuples.push_back(*$4);
+      std::reverse($$->update.update_tuples.begin(), $$->update.update_tuples.end());
+      if ($6 != nullptr) {
+        $$->update.conditions.swap(*$6);
+        delete $6;
       }
       free($2);
-      free($4);
+      delete $4;
+    }
+    ;
+update_tuple:
+    ID EQ value
+    {
+      $$ = new UpdateTuple;
+      $$->attribute_name = $1;
+      $$->value = *$3;
+    }
+    ;
+update_tuple_list:  /* 支持update多个字段 */
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA update_tuple update_tuple_list{
+      if ($3 != nullptr){
+        $$ = $3;
+      }else{
+        $$ =  new std::vector<UpdateTuple>;
+      }
+
+      $$->emplace_back(*$2);
+      delete $2;
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
