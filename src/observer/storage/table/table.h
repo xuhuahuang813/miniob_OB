@@ -99,6 +99,8 @@ public:
     return record_handler_;
   }
 
+  RC update_record(Trx *trx, Record *record, std::vector<const FieldMeta *> field_metas_, std::vector<Value> values);
+  RC update_record_data(char *record_data, const FieldMeta &field_meta, const Value &value);
 public:
   int32_t table_id() const { return table_meta_.table_id(); }
   const char *name() const;

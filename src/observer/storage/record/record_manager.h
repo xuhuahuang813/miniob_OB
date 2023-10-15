@@ -167,6 +167,14 @@ public:
   RC insert_record(const char *data, RID *rid);
 
   /**
+   * @brief 更新一条记录
+   *
+   * @param record 要更新的记录
+   * @param rid  要插入的记录标识
+   */
+  RC update_record(Record *record, RID *rid);
+
+  /**
    * @brief 数据库恢复时，在指定位置插入数据
    * 
    * @param data 要插入的数据行
@@ -304,6 +312,13 @@ public:
    * @param visitor  访问记录的回调函数
    */
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
+
+  /**
+   * @brief 更新记录
+   *
+   * @param record 更新后的record
+   */
+  RC update_record(Record *record);
 
 private:
   /**

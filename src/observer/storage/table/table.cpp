@@ -253,6 +253,77 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
+RC Table::update_record(Trx *trx, Record *record, std::vector<const FieldMeta *> field_metas, std::vector<Value> values)
+{
+  RC rc = RC::SUCCESS;
+  // 保存原始record副本，用于最后删除
+  std::string old_record(table_meta_.record_size(), ' '); /*record.len()*/
+  memcpy((void *)old_record.c_str(), record->data(), table_meta_.record_size());
+
+  // 更新record值
+  // 遍历所有需要更新的字段，将新的值更新到record中
+  for (int i = 0; i < field_metas.size(); i++) {
+    auto field_meta = field_metas[i];
+    rc = update_record_data(record->data(), *field_meta, values[i]); /*record.data_是char *类型的*/
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("Failed to update record data.");
+      return rc;
+    }
+  }
+
+  /*hxhTODO 检查是否违反可能存在的唯一性约束*/
+
+
+  // 删除旧索引
+  /*hxhTODO 删除旧索引失败*/
+  rc = delete_entry_of_indexes(old_record.c_str(), record->rid(), false);
+  if (rc != RC::SUCCESS) {
+      LOG_ERROR("[update] Failed to delete old index");
+      return rc;
+    }
+
+  // 创建新索引
+  rc = insert_entry_of_indexes(record->data(), record->rid());
+  if (rc != RC::SUCCESS) { 
+    /*hxhTODO 索引创建失败可能由于主键重复或其他，分情况讨论*/
+    LOG_ERROR("[update] failed to insert new index");
+    return rc;
+  }
+
+  rc = this->record_handler_->update_record(record);
+  return rc;
+}
+
+RC Table::update_record_data(char *record_data, const FieldMeta &field_meta, const Value &value)
+{
+  // 判断field_meta和value的类型是否一致，若一致则获取value的具体值
+  if (field_meta.type() != value.attr_type()) {
+    LOG_ERROR("update values don't match table's attrtype.");
+    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  }
+
+  // 获取需要拷贝的字段长度
+  size_t copy_len = field_meta.len();
+  if (field_meta.type() == CHARS) {
+    const size_t data_len = strlen(value.data());
+    memcpy(record_data + field_meta.offset(), value.get_string().c_str(), data_len);
+  } else if (field_meta.type() == INTS) {
+    int val = value.get_int();
+    memcpy(record_data + field_meta.offset(), &val, copy_len); /*&(value.get_int())会报错*/
+  } else if (field_meta.type() == FLOATS) {
+    float val = value.get_float();
+    memcpy(record_data + field_meta.offset(), &val, copy_len);
+  } else if (field_meta.type() == DATES) {
+    int val = value.get_date();
+    memcpy(record_data + field_meta.offset(), &val, copy_len);
+  } else if (field_meta.type() == BOOLEANS) {
+    bool val = value.get_boolean();
+    memcpy(record_data + field_meta.offset(), &val, copy_len);
+  }
+
+  return RC::SUCCESS;
+}
+
 RC Table::visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor)
 {
   return record_handler_->visit_record(rid, readonly, visitor);

@@ -209,6 +209,29 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid)
   return RC::SUCCESS;
 }
 
+RC RecordPageHandler::update_record(Record *record, RID *rid)
+{
+  if (rid->slot_num >= page_header_->record_capacity) {
+    LOG_ERROR("Invalid slot_num %d, exceed page's record capacity, page_num %d.", rid->slot_num, frame_->page_num());
+    return RC::INVALID_ARGUMENT;
+  }
+
+  Bitmap bitmap(bitmap_, page_header_->record_capacity);
+
+  if (!bitmap.get_bit(rid->slot_num)) {
+    LOG_ERROR("Invalid slot_num %d, slot is empty, page_num %d.", rid->slot_num, frame_->page_num());
+    return RC::RECORD_NOT_EXIST;
+  }
+
+  char *record_data = get_record_data(rid->slot_num);
+  memcpy(record_data, record->data(), record->len());
+
+  /*hxhTODO 是否还有必要更新位图？*/
+  bitmap.set_bit(rid->slot_num);
+  frame_->mark_dirty();
+  return RC::SUCCESS;
+}
+
 RC RecordPageHandler::recover_insert_record(const char *data, const RID &rid)
 {
   if (rid.slot_num >= page_header_->record_capacity) {
@@ -407,6 +430,21 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
 
   // 找到空闲位置
   return record_page_handler.insert_record(data, rid);
+}
+
+RC RecordFileHandler::update_record(Record *record)
+{
+  RC ret = RC::SUCCESS;
+
+  RecordPageHandler record_page_handler;
+
+  ret = record_page_handler.recover_init(*disk_buffer_pool_, record->rid().page_num);
+  if (ret != RC::SUCCESS) {
+    LOG_WARN("failed to init record page handler. page num=%d, rc=%s", record->rid().page_num, strrc(ret));
+    return ret;
+  }
+
+  return record_page_handler.update_record(record, &record->rid());
 }
 
 RC RecordFileHandler::recover_insert_record(const char *data, int record_size, const RID &rid)
